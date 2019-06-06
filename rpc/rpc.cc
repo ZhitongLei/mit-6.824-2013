@@ -664,34 +664,39 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
 {
 	ScopedLock rwl(&reply_window_m_);
     auto it = reply_window_.find(clt_nonce);
-    if (it != reply_window_.end()) {
+    if (it != reply_window_.end()) {    // Seen this client before
         auto &replies = it->second;
-        if (replies.empty()) { 
-            return FORGOTTEN; 
-        }
-
-        auto it_reply = std::find_if(replies.begin(), replies.end(), [xid](const reply_t &r){ return r.xid == xid; });
-        if (it_reply != replies.end()) {
-            if (it_reply->cb_present) {
-                *b = it_reply->buf;
-                *sz = it_reply->sz;
-                return DONE;
-            } else {
+        auto it_reply = replies.begin();
+        for (; it_reply != replies.end() && xid >= it_reply->xid; it_reply++) {
+            if (xid == it_reply->xid) {
+                if (it_reply->cb_present) {
+                    *b = it_reply->buf;
+                    *sz = it_reply->sz;
+                    return DONE;
+                }
                 return INPROGRESS;
             }
         }
 
-        if (xid < replies.front().xid) { 
+        if (replies.empty() == false && xid < replies.front().xid) { 
             return FORGOTTEN; 
         }
 
-        replies.erase(std::remove_if(replies.begin(), replies.end(), [xid_rep](reply_t &r) { return r.xid <= xid_rep; }), 
-                      replies.end());
+        // Remember request
+        replies.emplace(it_reply, xid);
+        
+        // Delete outdated request
+        auto it_delete = replies.begin();
+        for (; it_delete != replies.end() && it_delete->xid <= xid_rep; it_delete++) {
+            free(it_delete->buf);
+            it_delete->buf = nullptr;
+        }
+        replies.erase(replies.begin(), it_delete);
 
-        replies.emplace_back(xid);
         return NEW;
     }
 
+    // New client request
     std::list<reply_t> replys;
     replys.emplace_back(xid);
     reply_window_.emplace(clt_nonce, std::move(replys));

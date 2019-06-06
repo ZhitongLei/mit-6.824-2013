@@ -26,7 +26,6 @@ lock_protocol::status lock_server::acquire(int clt, lock_protocol::lockid_t lid,
         std::unique_lock<std::mutex> lock(mutex_);
         release_cond_.wait(lock, [this, lid]{return locks_.count(lid) == 0;});
         locks_.emplace(lid, clt);
-        //break;
     }
     return ret;
 }
