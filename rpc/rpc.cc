@@ -65,10 +65,12 @@
 #include "slock.h"
 
 #include <sys/types.h>
+#include <unistd.h>
 #include <arpa/inet.h>
 #include <netinet/tcp.h>
 #include <time.h>
 #include <netdb.h>
+#include <algorithm>
 
 #include "jsl_log.h"
 #include "gettime.h"
@@ -661,8 +663,38 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
 		unsigned int xid_rep, char **b, int *sz)
 {
 	ScopedLock rwl(&reply_window_m_);
+    auto it = reply_window_.find(clt_nonce);
+    if (it != reply_window_.end()) {
+        auto &replies = it->second;
+        if (replies.empty()) { 
+            return FORGOTTEN; 
+        }
 
-        // You fill this in for Lab 1.
+        auto it_reply = std::find_if(replies.begin(), replies.end(), [xid](const reply_t &r){ return r.xid == xid; });
+        if (it_reply != replies.end()) {
+            if (it_reply->cb_present) {
+                *b = it_reply->buf;
+                *sz = it_reply->sz;
+                return DONE;
+            } else {
+                return INPROGRESS;
+            }
+        }
+
+        if (xid < replies.front().xid) { 
+            return FORGOTTEN; 
+        }
+
+        replies.erase(std::remove_if(replies.begin(), replies.end(), [xid_rep](reply_t &r) { return r.xid <= xid_rep; }), 
+                      replies.end());
+
+        replies.emplace_back(xid);
+        return NEW;
+    }
+
+    std::list<reply_t> replys;
+    replys.emplace_back(xid);
+    reply_window_.emplace(clt_nonce, std::move(replys));
 	return NEW;
 }
 
@@ -677,6 +709,15 @@ rpcs::add_reply(unsigned int clt_nonce, unsigned int xid,
 {
 	ScopedLock rwl(&reply_window_m_);
         // You fill this in for Lab 1.
+    auto it = reply_window_.find(clt_nonce);
+    if (it != reply_window_.end()) {
+        auto it_reply = std::find_if(it->second.begin(), it->second.end(), [xid](const reply_t &r){ return r.xid == xid; });
+        if (it_reply != it->second.end()) {
+            it_reply->buf = b;
+            it_reply->sz = sz;
+            it_reply->cb_present = true;
+        }
+    }
 }
 
 void
