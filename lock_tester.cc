@@ -6,6 +6,7 @@
 #include "lock_client.h"
 #include "rpc.h"
 #include "jsl_log.h"
+#include <unistd.h>
 #include <arpa/inet.h>
 #include <vector>
 #include <stdlib.h>
