@@ -14,6 +14,8 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <random>
+#include <limits>
 #include <arpa/inet.h>
 #include "lang/verify.h"
 #include "yfs_client.h"
@@ -23,6 +25,13 @@ yfs_client *yfs;
 
 int id() { 
   return myid;
+}
+
+int random_id() {
+    std::random_device r;
+    std::default_random_engine e1(r());
+    std::uniform_int_distribution<int> uniform_dist(2, std::numeric_limits<int>::max());
+    return uniform_dist(e1);
 }
 
 //
@@ -124,7 +133,7 @@ fuseserver_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr,
   printf("fuseserver_setattr 0x%x\n", to_set);
   if (FUSE_SET_ATTR_SIZE & to_set) {
     printf("   fuseserver_setattr set size to %zu\n", attr->st_size);
-    struct stat st;
+    //struct stat st;
     // You fill this in for Lab 2
 #if 0
     // Change the above line to "#if 1", and your code goes here
@@ -155,9 +164,14 @@ fuseserver_read(fuse_req_t req, fuse_ino_t ino, size_t size,
                 off_t off, struct fuse_file_info *fi)
 {
   // You fill this in for Lab 2
-#if 0
+#if 1
   std::string buf;
   // Change the above "#if 0" to "#if 1", and your code goes here
+  int r = yfs->read(ino, off, size, buf);
+  if (r != yfs_client::OK) {
+      fuse_reply_err(req, r);
+      return;
+  }
   fuse_reply_buf(req, buf.data(), buf.size());
 #else
   fuse_reply_err(req, ENOSYS);
@@ -220,7 +234,23 @@ fuseserver_createhelper(fuse_ino_t parent, const char *name,
   e->entry_timeout = 0.0;
   e->generation = 0;
   // You fill this in for Lab 2
-  return yfs_client::NOENT;
+
+  // FIXME inum maybe duplicate
+  yfs_client::inum id = random_id();
+  id |= 0x80000000;
+  yfs_client::status ret;
+  ret = yfs->create(parent, name, id);
+  if (ret != yfs_client::OK) {
+      return ret;
+  }
+
+  e->ino = id;
+  struct stat;
+  if ((ret = getattr(id, e->attr)) != yfs_client::OK) {
+      return yfs_client::NOENT;
+  }
+
+  return yfs_client::OK;
 }
 
 void
@@ -271,6 +301,10 @@ fuseserver_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
   bool found = false;
 
   // You fill this in for Lab 2
+  yfs_client::inum id;
+  if (yfs->lookup(parent, name, id) == yfs_client::OK) {
+      found = true;
+  }
   if (found)
     fuse_reply_entry(req, &e);
   else
@@ -330,9 +364,13 @@ fuseserver_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
 
   memset(&b, 0, sizeof(b));
 
-
   // You fill this in for Lab 2
-
+  std::list<yfs_client::dirent> dirs;
+  if (yfs->readdir(ino, dirs) == yfs_client::OK) {
+      for (const auto &d : dirs) {
+          dirbuf_add(&b, d.name.c_str(), d.inum);
+      }
+  }
 
   reply_buf_limited(req, b.p, b.size, off, size);
   free(b.p);

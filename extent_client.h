@@ -14,6 +14,10 @@ class extent_client {
  public:
   extent_client(std::string dst);
 
+  extent_protocol::status create(extent_protocol::extentid_t pid, std::string name, extent_protocol::extentid_t eid);
+  extent_protocol::status lookup(extent_protocol::extentid_t pid, std::string name, extent_protocol::extentid_t &eid);
+  extent_protocol::status readdir(extent_protocol::extentid_t eid, std::map<std::string, unsigned long long> &dirs);
+
   extent_protocol::status get(extent_protocol::extentid_t eid, 
 			      std::string &buf);
   extent_protocol::status getattr(extent_protocol::extentid_t eid, 

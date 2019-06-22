@@ -9,12 +9,15 @@ class extent_protocol {
  public:
   typedef int status;
   typedef unsigned long long extentid_t;
-  enum xxstatus { OK, RPCERR, NOENT, IOERR };
+  enum xxstatus { OK, RPCERR, NOENT, IOERR, EXIST };
   enum rpc_numbers {
     put = 0x6001,
-    get,
-    getattr,
-    remove
+    get = 0x6002,
+    getattr = 0x6003,
+    remove = 0x6004,
+    create = 0x6005,
+    lookup = 0x6006,
+    readdir = 0x6007
   };
 
   struct attr {

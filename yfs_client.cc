@@ -89,5 +89,66 @@ yfs_client::getdir(inum inum, dirinfo &din)
   return r;
 }
 
+int yfs_client::create(inum parent, const std::string &name, inum &inum) {
+    auto r = ec->create(inum, name, inum);
+    switch (r) {
+      case extent_protocol::OK:
+          break;
+      case extent_protocol::EXIST:
+          return EXIST;
+      default:
+          return IOERR;
+    }
+    return OK;
+}
 
+int yfs_client::readdir(inum inum, std::list<dirent> &dirs) {
+    std::map<std::string, unsigned long long> dirent;
+    auto r = ec->readdir(inum, dirent);
+    switch (r) {
+      case extent_protocol::OK:
+          break;
+      case extent_protocol::NOENT:
+          return NOENT;
+      default:
+          return IOERR;
+    }
 
+    struct dirent dir;
+    for (const auto &kv : dirent) {
+        dir.name = kv.first;
+        dir.inum = kv.second;
+        dirs.emplace_back(std::move(dir));
+    }
+    return OK;
+}
+
+int yfs_client::lookup(inum parent, const std::string &name, inum& id) {
+    auto r = ec->lookup(parent, name, id);
+    switch (r) {
+      case extent_protocol::OK:
+          break;
+      case extent_protocol::NOENT:
+          return NOENT;
+      default:
+          return IOERR;
+    }
+    return OK;
+}
+
+int yfs_client::read(inum id, std::size_t off, std::size_t size, std::string &buf) {
+    std::string extent_buf;
+    auto r = ec->get(id, extent_buf);
+    switch (r) {
+      case extent_protocol::OK:
+          break;
+      case extent_protocol::NOENT:
+          return NOENT;
+      default:
+          return IOERR;
+    }
+
+    std::size_t actual_off = std::min(off, extent_buf.size());
+    buf = extent_buf.substr(actual_off, size);
+    return OK;
+}
