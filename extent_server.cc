@@ -22,7 +22,7 @@ extent_server::extent_server() {
 int extent_server::create(extent_protocol::extentid_t parent_id, std::string name, extent_protocol::extentid_t id, int &) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = extents_.find(parent_id);
-    if (it != extents_.end()) { 
+    if (it == extents_.end()) { 
         return extent_protocol::IOERR; 
     }
 
@@ -38,14 +38,13 @@ int extent_server::create(extent_protocol::extentid_t parent_id, std::string nam
     extents_.emplace(std::piecewise_construct,
                      std::forward_as_tuple(id),
                      std::forward_as_tuple(id, parent_id, name));
-    parent_ext.attr_.mtime = std::time(nullptr);
+    parent_ext.attr_.mtime = parent_ext.attr_.ctime = std::time(nullptr);
     return extent_protocol::OK;
 }
 
 int extent_server::lookup(extent_protocol::extentid_t parent_id, std::string name, extent_protocol::extentid_t &id) {
     std::map<std::string, unsigned long long> dirent;
-    int r;
-    int ret = readdir(parent_id, dirent, r);
+    int ret = readdir(parent_id, dirent);
     if (ret != extent_protocol::OK) {
         return ret;
     }
@@ -120,17 +119,19 @@ int extent_server::remove(extent_protocol::extentid_t id, int &)
       return extent_protocol::IOERR; 
   }
 
+  pit->second.children_.remove_if([id](const DirEntent &dirent) {return dirent.id == id;});
+
   for (const auto &child : ext.children_) {
       extents_.erase(child.id);
   }
 
   pit->second.attr_.mtime = std::time(nullptr);
-  extents_.erase(it);
+  extents_.erase(id);
   return extent_protocol::OK;
 }
 
 int extent_server::readdir(extent_protocol::extentid_t id,
-                           std::map<std::string, unsigned long long> &dirent, int &) {
+                           std::map<std::string, unsigned long long> &dirent) {
   std::lock_guard<std::mutex> lock(mutex_);
   const auto it = extents_.find(id);
   if (it == extents_.end()) {

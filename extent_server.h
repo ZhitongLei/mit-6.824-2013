@@ -28,6 +28,7 @@ struct ExtentEntry {
           parent_id_(parent_id),
           name_(name) {
         attr_.atime = attr_.ctime = attr_.mtime = std::time(nullptr);
+        attr_.size = 0;
     }
 
     ExtentEntry(ExtentEntry &&rhs) 
@@ -35,6 +36,7 @@ struct ExtentEntry {
           parent_id_(rhs.parent_id_),
           name_(std::move(rhs.name_)),
           attr_(rhs.attr_),
+          children_(std::move(rhs.children_)),
           buffer_(std::move(rhs.buffer_)) {
         rhs.id_ = 0;
         rhs.parent_id_ = 0;
@@ -46,7 +48,8 @@ struct ExtentEntry {
             parent_id_ = rhs.parent_id_;
             name_ = std::move(rhs.name_);
             attr_ = rhs.attr_;
-            buffer_ = rhs.buffer_;
+            children_ = std::move(rhs.children_);
+            buffer_ = std::move(rhs.buffer_);
             rhs.id_ = 0;
             rhs.parent_id_ = 0;
         }
@@ -56,7 +59,7 @@ struct ExtentEntry {
     extent_protocol::extentid_t id_ = 0;
     extent_protocol::extentid_t parent_id_ = 0;
     std::string name_;
-    extent_protocol::attr attr_{0, 0, 0,0};
+    extent_protocol::attr attr_{0, 0, 0, 0};
 
     std::list<DirEntent> children_;
     std::string buffer_;
@@ -74,7 +77,7 @@ class extent_server {
   int getattr(extent_protocol::extentid_t id, extent_protocol::attr &);
   int remove(extent_protocol::extentid_t id, int &);
 
-  int readdir(extent_protocol::extentid_t id, std::map<std::string, unsigned long long> &dirent, int &);
+  int readdir(extent_protocol::extentid_t id, std::map<std::string, unsigned long long> &dirent);
 
 private:
     std::mutex mutex_;  // Protects extents_

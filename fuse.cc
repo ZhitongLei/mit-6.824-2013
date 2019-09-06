@@ -14,8 +14,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <random>
-#include <limits>
 #include <arpa/inet.h>
 #include "lang/verify.h"
 #include "yfs_client.h"
@@ -25,13 +23,6 @@ yfs_client *yfs;
 
 int id() { 
   return myid;
-}
-
-int random_id() {
-    std::random_device r;
-    std::default_random_engine e1(r());
-    std::uniform_int_distribution<int> uniform_dist(2, std::numeric_limits<int>::max());
-    return uniform_dist(e1);
 }
 
 //
@@ -133,9 +124,21 @@ fuseserver_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr,
   printf("fuseserver_setattr 0x%x\n", to_set);
   if (FUSE_SET_ATTR_SIZE & to_set) {
     printf("   fuseserver_setattr set size to %zu\n", attr->st_size);
-    //struct stat st;
+
+    struct stat st;
     // You fill this in for Lab 2
-#if 0
+#if 1
+    yfs_client::status ret;
+    if ((ret = yfs->write(ino, attr->st_size, 0, nullptr)) != yfs_client::OK) {
+        fuse_reply_err(req, ENOSYS);
+        return;
+    }
+
+    if ((ret = getattr(ino, st)) != yfs_client::OK) {
+        fuse_reply_err(req, ENOSYS);
+        return;
+    }
+    
     // Change the above line to "#if 1", and your code goes here
     // Note: fill st using getattr before fuse_reply_attr
     fuse_reply_attr(req, &st, 0);
@@ -199,8 +202,13 @@ fuseserver_write(fuse_req_t req, fuse_ino_t ino,
                  struct fuse_file_info *fi)
 {
   // You fill this in for Lab 2
-#if 0
+#if 1
   // Change the above line to "#if 1", and your code goes here
+  int r = yfs->write(ino, off, size, buf);
+  if (r != yfs_client::OK) {
+      fuse_reply_err(req, ENOSYS);
+      return;
+  }
   fuse_reply_write(req, size);
 #else
   fuse_reply_err(req, ENOSYS);
@@ -235,11 +243,10 @@ fuseserver_createhelper(fuse_ino_t parent, const char *name,
   e->generation = 0;
   // You fill this in for Lab 2
 
-  // FIXME inum maybe duplicate
-  yfs_client::inum id = random_id();
-  id |= 0x80000000;
+  yfs_client::inum id;
   yfs_client::status ret;
   ret = yfs->create(parent, name, id);
+  printf("yfs_client create return %d\n", ret);
   if (ret != yfs_client::OK) {
       return ret;
   }
@@ -407,7 +414,21 @@ fuseserver_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name,
   (void) e;
 
   // You fill this in for Lab 3
-#if 0
+#if 1
+  yfs_client::inum id;
+  yfs_client::status ret;
+  ret = yfs->mkdir(parent, name, id);
+  printf("yfs_client mkdir ret %d\n", ret);
+  if (ret != yfs_client::OK) {
+      fuse_reply_err(req, ret);
+      return;
+  }
+  e.ino = id;
+  struct stat;
+  if ((ret = getattr(id, e.attr)) != yfs_client::OK) {
+      fuse_reply_err(req, ENOSYS);
+      return;
+  }
   fuse_reply_entry(req, &e);
 #else
   fuse_reply_err(req, ENOSYS);
