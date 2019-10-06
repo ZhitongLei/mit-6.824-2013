@@ -22,12 +22,12 @@ extent_server::extent_server() {
 int extent_server::create(extent_protocol::extentid_t parent_id, std::string name, extent_protocol::extentid_t id, int &) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = extents_.find(parent_id);
-    if (it == extents_.end() || isfile(parent_id)) { 
-        return extent_protocol::IOERR; 
+    if (it == extents_.end() || isfile(parent_id)) {
+        return extent_protocol::IOERR;
     }
 
     auto &parent_ext = it->second;
-    const auto cit = std::find_if(parent_ext.children_.begin(), parent_ext.children_.end(), 
+    const auto cit = std::find_if(parent_ext.children_.begin(), parent_ext.children_.end(),
                                   [&name](const DirEntent &dirent) {return dirent.name == name;});
     if (cit != parent_ext.children_.end()) {
         return extent_protocol::EXIST;
@@ -111,12 +111,12 @@ int extent_server::remove(extent_protocol::extentid_t id, int &)
   if (it == extents_.end()) {
       return extent_protocol::NOENT;
   }
-  
+
   // TODO remove subdir recursively
   auto &ext = it->second;
   auto pit = extents_.find(ext.parent_id_);
-  if (pit == extents_.end()) { 
-      return extent_protocol::IOERR; 
+  if (pit == extents_.end()) {
+      return extent_protocol::IOERR;
   }
 
   pit->second.children_.remove_if([id](const DirEntent &dirent) {return dirent.id == id;});
@@ -125,7 +125,7 @@ int extent_server::remove(extent_protocol::extentid_t id, int &)
       extents_.erase(child.id);
   }
 
-  pit->second.attr_.mtime = std::time(nullptr);
+  pit->second.attr_.mtime = pit->second.attr_.ctime = std::time(nullptr);
   extents_.erase(id);
   return extent_protocol::OK;
 }
