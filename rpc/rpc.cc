@@ -65,10 +65,12 @@
 #include "slock.h"
 
 #include <sys/types.h>
+#include <unistd.h>
 #include <arpa/inet.h>
 #include <netinet/tcp.h>
 #include <time.h>
 #include <netdb.h>
+#include <algorithm>
 
 #include "jsl_log.h"
 #include "gettime.h"
@@ -661,8 +663,43 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
 		unsigned int xid_rep, char **b, int *sz)
 {
 	ScopedLock rwl(&reply_window_m_);
+    auto it = reply_window_.find(clt_nonce);
+    if (it != reply_window_.end()) {    // Seen this client before
+        auto &replies = it->second;
+        auto it_reply = replies.begin();
+        for (; it_reply != replies.end() && xid >= it_reply->xid; it_reply++) {
+            if (xid == it_reply->xid) {
+                if (it_reply->cb_present) {
+                    *b = it_reply->buf;
+                    *sz = it_reply->sz;
+                    return DONE;
+                }
+                return INPROGRESS;
+            }
+        }
 
-        // You fill this in for Lab 1.
+        if (replies.empty() == false && xid < replies.front().xid) { 
+            return FORGOTTEN; 
+        }
+
+        // Remember request
+        replies.emplace(it_reply, xid);
+        
+        // Delete outdated request
+        auto it_delete = replies.begin();
+        for (; it_delete != replies.end() && it_delete->xid <= xid_rep; it_delete++) {
+            free(it_delete->buf);
+            it_delete->buf = nullptr;
+        }
+        replies.erase(replies.begin(), it_delete);
+
+        return NEW;
+    }
+
+    // New client request
+    std::list<reply_t> replys;
+    replys.emplace_back(xid);
+    reply_window_.emplace(clt_nonce, std::move(replys));
 	return NEW;
 }
 
@@ -677,6 +714,15 @@ rpcs::add_reply(unsigned int clt_nonce, unsigned int xid,
 {
 	ScopedLock rwl(&reply_window_m_);
         // You fill this in for Lab 1.
+    auto it = reply_window_.find(clt_nonce);
+    if (it != reply_window_.end()) {
+        auto it_reply = std::find_if(it->second.begin(), it->second.end(), [xid](const reply_t &r){ return r.xid == xid; });
+        if (it_reply != it->second.end()) {
+            it_reply->buf = b;
+            it_reply->sz = sz;
+            it_reply->cb_present = true;
+        }
+    }
 }
 
 void
