@@ -80,6 +80,11 @@ class extent_server {
   int readdir(extent_protocol::extentid_t id, std::map<std::string, unsigned long long> &dirent);
 
 private:
+    bool isfile(extent_protocol::extentid_t id) {
+        return (id & 0x80000000);
+    }
+
+private:
     std::mutex mutex_;  // Protects extents_
     std::unordered_map<extent_protocol::extentid_t, ExtentEntry> extents_;
 };

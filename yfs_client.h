@@ -50,6 +50,7 @@ class yfs_client {
   int read(inum, std::size_t off, std::size_t size, std::string &buf);
   int write(inum id, std::size_t off, std::size_t size, const char *buf);
   int lookup(inum, const std::string &, inum&);
+  int setattr(inum ino, struct stat *st);
 };
 
 #endif 

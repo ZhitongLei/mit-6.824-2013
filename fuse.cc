@@ -57,7 +57,7 @@ getattr(yfs_client::inum inum, struct stat &st)
      st.st_mtime = info.mtime;
      st.st_ctime = info.ctime;
      st.st_size = info.size;
-     printf("   getattr -> %llu\n", info.size);
+     printf("   getattr %016llx -> %llu\n", inum, info.size);
    } else {
      yfs_client::dirinfo info;
      ret = yfs->getdir(inum, info);
@@ -129,7 +129,9 @@ fuseserver_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr,
     // You fill this in for Lab 2
 #if 1
     yfs_client::status ret;
-    if ((ret = yfs->write(ino, attr->st_size, 0, nullptr)) != yfs_client::OK) {
+    
+    // if ((ret = yfs->write(ino, attr->st_size, 0, nullptr)) != yfs_client::OK) {
+    if ((ret = yfs->setattr(ino, attr)) != yfs_client::OK) {
         fuse_reply_err(req, ENOSYS);
         return;
     }
@@ -175,6 +177,7 @@ fuseserver_read(fuse_req_t req, fuse_ino_t ino, size_t size,
       fuse_reply_err(req, r);
       return;
   }
+  printf("Read ino %016llx off %zu req_size %zu resp_size %zu\n", ino, off, size, buf.size());
   fuse_reply_buf(req, buf.data(), buf.size());
 #else
   fuse_reply_err(req, ENOSYS);
@@ -209,6 +212,7 @@ fuseserver_write(fuse_req_t req, fuse_ino_t ino,
       fuse_reply_err(req, ENOSYS);
       return;
   }
+  printf("Write ino %016llx off %zu size %zu\n", ino, off, size);
   fuse_reply_write(req, size);
 #else
   fuse_reply_err(req, ENOSYS);
@@ -246,7 +250,7 @@ fuseserver_createhelper(fuse_ino_t parent, const char *name,
   yfs_client::inum id;
   yfs_client::status ret;
   ret = yfs->create(parent, name, id);
-  printf("yfs_client create return %d\n", ret);
+  printf("yfs_client create return %d, parent %016llx name %s new_id %016llx\n", ret, parent, name, id);
   if (ret != yfs_client::OK) {
       return ret;
   }
@@ -312,9 +316,12 @@ fuseserver_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
   if (yfs->lookup(parent, name, id) == yfs_client::OK) {
       found = true;
   }
-  if (found)
+  if (found) {
+    getattr(id, e.attr);
+    e.ino = id;
+    printf("Lookup success, parent %016llx name %s id %016llx\n", parent, name, id);
     fuse_reply_entry(req, &e);
-  else
+  } else
     fuse_reply_err(req, ENOENT);
 }
 

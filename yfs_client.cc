@@ -183,8 +183,11 @@ int yfs_client::read(inum id, std::size_t off, std::size_t size, std::string &bu
           return IOERR;
     }
 
-    std::size_t actual_off = std::min(off, extent_buf.size());
-    buf = extent_buf.substr(actual_off, size);
+    buf = extent_buf.substr(off, size);
+    //std::size_t start = std::min(off, extent_buf.size());
+    //std::size_t end = std::min(off+size, extent_buf.size());
+    //std::size_t actual_size = end - start;
+    //buf = extent_buf.substr(start, actual_size);
     return OK;
 }
 
@@ -200,12 +203,19 @@ int yfs_client::write(inum id, std::size_t off, std::size_t size, const char *bu
           return IOERR;
     }
 
-    if (off > extent_buf.size()) {
-        std::size_t gap = off - extent_buf.size();
-        extent_buf.insert(extent_buf.end(), gap, '\0');
+    //if (off > extent_buf.size()) {
+    //    std::size_t gap = off - extent_buf.size();
+    //    extent_buf.insert(extent_buf.end(), gap+size, '\0');
+    //}
+    printf("yfs_client before Write id %016llx buf_size %zu off %zu size %zu\n", id, extent_buf.size(), off, size);
+    extent_buf.resize(std::max(extent_buf.size(), off + size), '\0');
+    //extent_buf.replace(off, size, buf);
+    for (std::size_t i = off, j = 0; j < size; ++i,++j){
+         extent_buf[i] = buf[j];
     }
-    extent_buf.replace(off, size, buf);
+
     r = ec->put(id, extent_buf);
+    printf("yfs_client after Write id %016llx buf_size %zu\n", id, extent_buf.size());
     switch (r) {
       case extent_protocol::OK:
           break;
@@ -216,6 +226,21 @@ int yfs_client::write(inum id, std::size_t off, std::size_t size, const char *bu
     }
 
     return OK;
+}
+
+int yfs_client::setattr(inum ino, struct stat *st) {
+    // Update mtime, atime
+    std::string tmp;
+    auto ret = ec->get(ino, tmp);
+    if (OK != ret){
+        return ret;
+    }
+    if (st->st_size < (int)tmp.size()){
+        tmp = tmp.substr(0, st->st_size);
+    } else {
+        tmp += std::string('\0', st->st_size - tmp.size());
+    }
+    return ec->put(ino, tmp);
 }
 
 //int yfs_client::setattr(inum id, struct stat &st) {

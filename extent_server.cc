@@ -22,7 +22,7 @@ extent_server::extent_server() {
 int extent_server::create(extent_protocol::extentid_t parent_id, std::string name, extent_protocol::extentid_t id, int &) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = extents_.find(parent_id);
-    if (it == extents_.end()) { 
+    if (it == extents_.end() || isfile(parent_id)) { 
         return extent_protocol::IOERR; 
     }
 
@@ -66,7 +66,7 @@ int extent_server::put(extent_protocol::extentid_t id, std::string buf, int &ret
       auto &ext = it->second;
       ext.buffer_.assign(buf.begin(), buf.end());
       ext.attr_.size = buf.size();
-      ext.attr_.mtime = std::time(nullptr);
+      ext.attr_.mtime = ext.attr_.atime = std::time(nullptr);
       ret = ext.buffer_.size();
       return extent_protocol::OK;
   }
@@ -134,7 +134,7 @@ int extent_server::readdir(extent_protocol::extentid_t id,
                            std::map<std::string, unsigned long long> &dirent) {
   std::lock_guard<std::mutex> lock(mutex_);
   const auto it = extents_.find(id);
-  if (it == extents_.end()) {
+  if (it == extents_.end() || isfile(id)) {
       return extent_protocol::NOENT;
   }
   auto &ext = it->second;
